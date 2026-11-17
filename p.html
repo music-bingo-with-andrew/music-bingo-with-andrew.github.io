@@ -133,6 +133,9 @@ const [CODE, KEY, SHEET] = (main || '').split('.');
 const ls = {get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }, set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }, del(k){ try{ localStorage.removeItem(k); }catch(e){} }};
 const ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I/L: easy to read back
 let me = ls.get('mbPlayer'), es = null, answered = false, retry = 0, tries = 0, seen = new Set();
+// Each check-in has its own id, so an answer to an earlier scan (still in the relay for a few minutes) is never shown for this one.
+const RID = Math.random().toString(36).slice(2, 10);
+let meTime = 0;
 
 function show(v){ for(const x of ['vName', 'vCode', 'vWait', 'vErr', 'vMe']) $('#' + x).hidden = x !== v; }
 function setStat(ok, t){ $('#dot').className = 'dot' + (ok ? ' ok' : ''); $('#stat').textContent = t; }
@@ -175,7 +178,7 @@ function listen(){
     if(d.event && d.event !== 'message') return;
     if(d.id){ if(seen.has(d.id)) return; seen.add(d.id); }
     let m; try{ m = JSON.parse(d.message); }catch(e){ return; }
-    onLaptop(m);
+    onLaptop(m, d.time || 0);
   };
 }
 async function send(m){
@@ -191,7 +194,7 @@ async function checkIn(){
 async function sendClaim(){
   if(answered) return;
   tries++;
-  const ok = await send({mb: 'claim', pid: me.pid, name: me.restore ? '' : me.name, k: KEY, sheet: +SHEET, t: Date.now()});
+  const ok = await send({mb: 'claim', pid: me.pid, name: me.restore ? '' : me.name, k: KEY, sheet: +SHEET, rid: RID, t: Date.now()});
   if(!ok) $('#waitMsg').textContent = "Couldn't reach the internet. Trying again…";
   clearTimeout(retry);
   retry = setTimeout(() => {
@@ -201,7 +204,9 @@ async function sendClaim(){
   }, tries < 2 ? 12000 : 30000);
 }
 
-function onLaptop(m){
+function onLaptop(m, time){
+  if(m.mb === 'me' && m.rid !== RID && (m.rid || answered)) return;   // an answer to a different scan
+  if(m.mb === 'won' && time < meTime) return;   // a win from before this check-in
   if(m.mb === 'me'){
     if(m.err === 'nocode'){
       answered = true; clearTimeout(retry); ls.del('mbPlayer'); me = null;
@@ -209,7 +214,7 @@ function onLaptop(m){
       return;
     }
     if(m.err){ answered = true; clearTimeout(retry); err(m.errT || "Couldn't check you in", m.err, false); return; }
-    answered = true; clearTimeout(retry);
+    answered = true; clearTimeout(retry); meTime = time;
     if(m.name && me){ me.name = m.name; delete me.restore; ls.set('mbPlayer', me); }
     render(m);
   } else if(m.mb === 'won'){

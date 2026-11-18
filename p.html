@@ -84,7 +84,8 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
   <div id="vMe" hidden>
     <div id="won" class="won" hidden></div>
     <div class="box">
-      <div class="big"><span class="ok">✓</span> <span id="hi"></span></div>
+      <div class="big"><span class="ok" id="tick">✓</span> <span id="hi"></span></div>
+      <div id="asOf" class="msg" hidden></div>
       <div id="sheetInfo"></div>
       <div id="test" class="msg err" hidden></div>
       <div class="stats">
@@ -113,6 +114,7 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
       <div class="msg" style="margin-top:0">Your player code</div>
       <div id="pcode" class="pcode"></div>
       <div class="msg">If your phone ever forgets you, tap "I've played before" and type this code.</div>
+      <div class="msg" style="margin-top:12px"><b>Check your points anytime:</b> add this page to your home screen. iPhone: tap Share, then <i>Add to Home Screen</i>. Android: tap ⋮, then <i>Add to Home screen</i>.</div>
       <button class="link" id="notMe">Not you? Switch player</button>
     </div>
     <div class="msg" style="text-align:center">Keep playing on your paper card. Got bingo? Shout it out!</div>
@@ -146,7 +148,13 @@ function fmt(iso){ const [y, m, d] = String(iso).split('-'); return d ? `${+m}-$
 const okLink = /^[A-Za-z]{4}$/.test(CODE || '') && /^[a-z0-9]{2,8}$/.test(KEY || '') && /^\d{1,5}$/.test(SHEET || '');
 
 function begin(){
-  if(!okLink){ err('This link is incomplete', 'Scan the QR code in the FREE square of your bingo card again.'); return; }
+  if(!okLink){
+    // Opened from the home screen (or #me): show this player's points, no check-in
+    const lastM = ls.get('mbLast');
+    if(me && me.pid && lastM){ meTime = Math.floor(Date.now() / 1000) - 5; render(lastM, true); refresh(); return; }   // only wins from now on
+    err('Scan your bingo card', 'Point your camera at the QR code in the FREE square of your card to check in and see your points.'); return;
+  }
+  ls.set('mbCode', CODE.toUpperCase());
   if(!me || !me.pid){ show('vName'); setTimeout(() => $('#name').focus(), 50); return; }
   checkIn();
 }
@@ -182,7 +190,14 @@ function listen(){
   };
 }
 async function send(m){
-  try{ const r = await fetch(`${RELAY}/${PREFIX}${CODE.toLowerCase()}-in`, {method: 'POST', body: JSON.stringify(m)}); return r.ok; }catch(e){ return false; }
+  const code = (okLink ? CODE : ls.get('mbCode') || '').toLowerCase(); if(!code) return false;
+  try{ const r = await fetch(`${RELAY}/${PREFIX}${code}-in`, {method: 'POST', body: JSON.stringify(m)}); return r.ok; }catch(e){ return false; }
+}
+// Points page from the home screen: during a show the laptop answers with fresh numbers; otherwise the last ones stay.
+async function refresh(){
+  if(!ls.get('mbCode')) return;
+  listen(); await new Promise(r => setTimeout(r, 600));
+  send({mb: 'stats', pid: me.pid, rid: RID, t: Date.now()});
 }
 async function checkIn(){
   answered = false; tries = 0;
@@ -215,6 +230,7 @@ function onLaptop(m, time){
     }
     if(m.err){ answered = true; clearTimeout(retry); err(m.errT || "Couldn't check you in", m.err, false); return; }
     answered = true; clearTimeout(retry); meTime = time;
+    if(!m.look){ try{ history.replaceState(null, '', location.pathname + '#me'); }catch(e){} }   // a bookmark or home-screen shortcut opens the points page, not this card again
     if(m.name && me){ me.name = m.name; delete me.restore; ls.set('mbPlayer', me); }
     render(m);
   } else if(m.mb === 'won'){
@@ -227,9 +243,14 @@ function onLaptop(m, time){
   }
 }
 let last = {};
-function render(m){
+function render(m, saved){
   last = m; show('vMe');
-  $('#hi').textContent = `You're checked in, ${m.name}!`;
+  if(!saved){ const keep = {...m}; delete keep.newPrize; keep.savedOn = new Date().toLocaleDateString('en-CA'); ls.set('mbLast', keep); }   // today's date, local
+  const look = saved || m.look || !m.sheet;
+  $('#tick').hidden = look;
+  $('#hi').textContent = look ? `Your points, ${m.name}` : `You're checked in, ${m.name}!`;
+  $('#asOf').hidden = !saved; if(saved) $('#asOf').textContent = `As of ${fmt(m.savedOn)}. Scan the FREE square at your next game to check in.`;
+  if(look) m = {...m, sheet: 0, newPrize: '', test: false};
   $('#sheetInfo').textContent = m.sheet ? `${m.plName ? m.plName + ' · ' : ''}Sheet #${m.sheet} (cards #${m.sheet * 2 - 1} & #${m.sheet * 2})` : '';
   $('#test').hidden = !m.test; $('#test').textContent = m.test ? 'Practice game: this check-in worked, but points only count at a live show.' : '';
   $('#sPts').textContent = m.points || 0; $('#sNights').textContent = m.nights || 0; $('#sWins').textContent = (m.wins || []).length;

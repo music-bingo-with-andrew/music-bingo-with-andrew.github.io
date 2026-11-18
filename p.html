@@ -33,6 +33,17 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
 .vote button{background:#2a2050;color:#fff;border:2px solid var(--purple)}.vote button.mine{background:var(--purple)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;margin-right:6px}.dot.ok{background:var(--ok)}
 .status{text-align:center;font-size:12px;color:var(--muted);margin-top:10px}
+#name{text-transform:uppercase}
+.wins li{flex-wrap:wrap}.wins li .wd{flex:1 1 100%;font-size:13px;color:var(--muted)}
+#congrats{position:fixed;inset:0;z-index:50;background:radial-gradient(circle at 50% 35%,#4a3a10,#14161c 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+#congrats[hidden]{display:none}
+#congrats .c1{font-size:64px;line-height:1}
+#congrats .c2{font:900 min(34px,8vw) "Arial Black",Arial,sans-serif;color:var(--accent);margin:14px 0 2px;white-space:nowrap}
+#congrats .cn{font:900 30px "Arial Black",Arial,sans-serif;color:#fff;margin-bottom:10px}
+#congrats .c3{font-size:22px;font-weight:800;color:#fff}
+#congrats .c4{font-size:16px;color:#d3d7e2;margin-top:8px}
+#congrats .c5{margin-top:14px;font-size:19px;font-weight:800;color:#ffe2a0}
+#congrats button{max-width:320px;margin-top:26px}
 .spin{display:inline-block;width:22px;height:22px;border:3px solid #3a4052;border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
 </style>
@@ -117,7 +128,16 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
       <div class="msg" style="margin-top:12px"><b>Check your points anytime:</b> add this page to your home screen. iPhone: tap Share, then <i>Add to Home Screen</i>. Android: tap ⋮, then <i>Add to Home screen</i>.</div>
       <button class="link" id="notMe">Not you? Switch player</button>
     </div>
-    <div class="msg" style="text-align:center">Keep playing on your paper card. Got bingo? Shout it out!</div>
+    <div id="footMsg" class="msg" style="text-align:center">Keep playing on your paper card. Got bingo? Shout it out!</div>
+  </div>
+  <div id="congrats" hidden>
+    <div class="c1">🎉</div>
+    <div class="c2">CONGRATULATIONS!</div>
+    <div class="cn" id="cgName"></div>
+    <div class="c3" id="cgWhat"></div>
+    <div class="c4" id="cgSub"></div>
+    <div class="c5" id="cgPrize" hidden></div>
+    <button id="cgOk">See my points</button>
   </div>
   <div class="status"><span id="dot" class="dot"></span><span id="stat"></span></div>
 </div>
@@ -151,7 +171,7 @@ function begin(){
   if(!okLink){
     // Opened from the home screen (or #me): show this player's points, no check-in
     const lastM = ls.get('mbLast');
-    if(me && me.pid && lastM){ meTime = Math.floor(Date.now() / 1000) - 5; render(lastM, true); refresh(); return; }   // only wins from now on
+    if(me && me.pid && lastM){ const ct = ls.get('mbCheckT') || 0; meTime = ct && Date.now() / 1000 - ct < 6 * 3600 ? ct : Math.floor(Date.now() / 1000) - 5; render(lastM, true); refresh(); return; }   // wins since tonight's check-in (if it was in the last few hours)
     err('Scan your bingo card', 'Point your camera at the QR code in the FREE square of your card to check in and see your points.'); return;
   }
   ls.set('mbCode', CODE.toUpperCase());
@@ -159,7 +179,7 @@ function begin(){
   checkIn();
 }
 $('#nameGo').onclick = () => {
-  const n = $('#name').value.replace(/\s+/g, ' ').trim().slice(0, 6);
+  const n = $('#name').value.replace(/\s+/g, ' ').trim().slice(0, 6).toUpperCase();
   if(n.length < 2){ $('#nameMsg').className = 'msg err'; $('#nameMsg').textContent = 'Type a nickname (2 to 6 letters).'; return; }
   me = {pid: newPid(), name: n}; ls.set('mbPlayer', me); checkIn();
 };
@@ -178,7 +198,7 @@ $('#errBack').onclick = () => begin();
 // Listen for the laptop's answers on this player's own topic, then send the check-in.
 function listen(){
   if(es) es.close();
-  es = new EventSource(`${RELAY}/${PREFIX}p-${me.pid.toLowerCase()}/sse?since=20m`);
+  es = new EventSource(`${RELAY}/${PREFIX}p-${me.pid.toLowerCase()}/sse?since=6h`);
   es.onopen = () => setStat(true, 'Connected');
   es.onerror = () => setStat(false, 'Reconnecting… (check your internet)');
   es.onmessage = ev => {
@@ -200,7 +220,7 @@ async function refresh(){
   send({mb: 'stats', pid: me.pid, rid: RID, t: Date.now()});
 }
 async function checkIn(){
-  answered = false; tries = 0;
+  answered = false; tries = 0; meTime = Math.floor(Date.now() / 1000) - 5;   // wins from before this scan were already shown
   show('vWait'); $('#waitT').textContent = me.restore ? 'Looking you up…' : 'Checking you in…'; $('#waitMsg').textContent = '';
   listen();
   await new Promise(r => setTimeout(r, 600));   // give the listener a moment to connect
@@ -230,18 +250,36 @@ function onLaptop(m, time){
     }
     if(m.err){ answered = true; clearTimeout(retry); err(m.errT || "Couldn't check you in", m.err, false); return; }
     answered = true; clearTimeout(retry); meTime = time;
+    if(!m.look) ls.set('mbCheckT', time);   // a win later tonight still shows if the page is reopened from the home screen
     if(!m.look){ try{ history.replaceState(null, '', location.pathname + '#me'); }catch(e){} }   // a bookmark or home-screen shortcut opens the points page, not this card again
     if(m.name && me){ me.name = m.name; delete me.restore; ls.set('mbPlayer', me); }
     render(m);
   } else if(m.mb === 'won'){
+    const key = String(time) + '|' + m.round;
+    const shown = ls.get('mbWinsShown') || []; if(shown.includes(key)) return;   // already congratulated (page reopened)
     if(m.stats) render(m.stats);
     const w = $('#won'); w.hidden = false;
-    w.textContent = `🎉 You won Round ${m.round}! +${m.pts} point${m.pts === 1 ? '' : 's'}` + (m.test ? ' (practice)' : '');
-    if(navigator.vibrate) navigator.vibrate([80, 60, 80, 60, 200]);
+    w.textContent = `🎉 You won ${winType(m.round)}! +${m.pts} point${m.pts === 1 ? '' : 's'}` + (m.test ? ' (practice)' : '');
+    congrats(m, key);
   } else if(m.mb === 'voted'){
     last.voted = m.choice; renderVote(last);
   }
 }
+const winName = r => ({1: 'Single line', 2: 'Double line', 3: 'Blackout'})[r] || `Round ${r}`;
+const winType = r => ({1: 'a single line', 2: 'a double line', 3: 'a blackout'})[r] || `Round ${r}`;
+// The win stays on screen until the player taps it, so it's waiting for them when they get back to their phone.
+function congrats(m, key){
+  const st = m.stats || {};
+  $('#cgName').textContent = st.name || '';
+  $('#cgWhat').textContent = `You won ${winType(m.round)}! +${m.pts} point${m.pts === 1 ? '' : 's'}`;
+  $('#cgSub').textContent = [st.plName, st.points != null ? `${st.points} points total` : '', m.test ? 'Practice game' : ''].filter(Boolean).join(' · ');
+  $('#cgPrize').hidden = !st.newPrize; if(st.newPrize) $('#cgPrize').textContent = `🎁 You also earned: ${st.newPrize}! See Andrew to collect it.`;
+  $('#congrats').hidden = false; $('#congrats').dataset.key = key;
+}
+$('#cgOk').onclick = () => {
+  const k = $('#congrats').dataset.key; $('#congrats').hidden = true;
+  const shown = ls.get('mbWinsShown') || []; if(k && !shown.includes(k)){ shown.push(k); ls.set('mbWinsShown', shown.slice(-30)); }
+};
 let last = {};
 function render(m, saved){
   last = m; show('vMe');
@@ -258,15 +296,21 @@ function render(m, saved){
   $('#next').textContent = m.next ? `${m.next.need} point${m.next.need === 1 ? '' : 's'} to your next prize: ${m.next.prize}` : '';
   $('#prize').hidden = !m.newPrize; if(m.newPrize) $('#prize').textContent = `🎁 You just earned: ${m.newPrize}! See Andrew to collect it.`;
   const wl = $('#winList'); wl.innerHTML = '';
-  for(const w of (m.wins || []).slice().reverse()){ const li = document.createElement('li'); li.textContent = `${fmt(w.d)} · Round ${w.r}`; const s = document.createElement('span'); s.textContent = `+${w.pts}`; li.append(s); wl.append(li); }
+  for(const w of (m.wins || []).slice().reverse()){
+    const li = document.createElement('li'); const t = document.createElement('b'); t.textContent = `${fmt(w.d)} · ${winName(w.r)}`; t.style.fontWeight = '600';
+    const s = document.createElement('span'); s.textContent = `+${w.pts}`; li.append(t, s);
+    const det = [w.pl, `Round ${w.r}`, w.c ? `Card #${w.c}` : '', w.v].filter(Boolean).join(' · ');
+    const dd = document.createElement('div'); dd.className = 'wd'; dd.textContent = det; li.append(dd); wl.append(li);
+  }
   $('#winBox').hidden = !(m.wins || []).length;
+  $('#footMsg').hidden = look;
   $('#pcode').textContent = me ? me.pid : '';
   renderHow(m.rules);
   renderVote(m);
 }
 // The point values and prizes come from Andrew's laptop, so this always matches how MusicBingo counts them.
 function renderHow(r){
-  r = r || {play: 1, win: [1, 2, 5], streak: [4, 4], prizes: [[25, "Bag of Mama Hen's Seasoned Pretzels"], [50, 'Free appetizer']]};
+  r = r || {play: 1, win: [1, 2, 5], streak: [4, 4], prizes: [[25, "Bag of Mama Hen's Seasoned Pretzels"], [50, 'Free Wild Wing Appetizer']]};
   const h = $('#howList'); h.innerHTML = '';
   const line = (pts, text) => { const d = document.createElement('div'); const b = document.createElement('b'); b.textContent = pts; d.append(b, ' ' + text); h.append(d); };
   line(`+${r.play}`, 'for each game you check in to (2 games a night)');

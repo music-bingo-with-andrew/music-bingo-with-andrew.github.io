@@ -46,6 +46,10 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
 #congrats button{max-width:320px;margin-top:26px}
 .spin{display:inline-block;width:22px;height:22px;border:3px solid #3a4052;border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.pbar{height:16px;background:#151821;border-radius:8px;margin:8px 0 2px;overflow:hidden;border:1px solid var(--line)}.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#ffd76a);border-radius:8px;transition:width .8s}
+.lbl{list-style:none;margin:6px 0 0;padding:0;text-align:left}.lbl li{display:flex;gap:10px;align-items:center;padding:8px 4px;border-top:1px solid var(--line);font-size:18px;font-weight:700}.lbl li:first-child{border-top:0}
+.lbl .rk{width:28px;color:var(--accent)}.lbl .nm{flex:1;letter-spacing:1px}.lbl .pt{color:var(--accent)}.lbl li.me{background:#2a2410;border-radius:8px}.lbl li.flash{animation:fl 1.6s ease-out 2}
+@keyframes fl{0%{background:#1d5a3e}100%{background:transparent}}
 </style>
 </head>
 <body>
@@ -106,7 +110,13 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
       </div>
       <div id="rank" class="msg"></div>
       <div id="next" class="next"></div>
+      <div id="pbar" class="pbar" hidden><i></i></div>
       <div id="prize" class="prize" hidden></div>
+    </div>
+    <div id="lbBox" class="box" hidden>
+      <div class="sect" style="margin-top:0">🏆 Leaderboard <span id="lbVen" style="text-transform:none;letter-spacing:0"></span></div>
+      <ol id="lbList" class="lbl"></ol>
+      <div class="msg" style="font-size:13px">Updates live after every bingo.</div>
     </div>
     <div id="voteBox" class="box vote" hidden>
       <div class="big">🗳 Pick next theme!</div>
@@ -280,7 +290,33 @@ $('#cgOk').onclick = () => {
   const k = $('#congrats').dataset.key; $('#congrats').hidden = true;
   const shown = ls.get('mbWinsShown') || []; if(k && !shown.includes(k)){ shown.push(k); ls.set('mbWinsShown', shown.slice(-30)); }
 };
-let last = {};
+let last = {}, last0 = {}, boardES = null, boardShown = '';
+// 🏆 the venue's top 10, live: the laptop sends a new one to every phone after each bingo
+function renderBoard(rows, venue, myName){
+  if(!rows || !rows.length){ $('#lbBox').hidden = true; return; }
+  const sig = JSON.stringify(rows), old = boardShown ? JSON.parse(boardShown) : [], oldPts = {}; for(const r of old) oldPts[r[0]] = r[1];
+  boardShown = sig; $('#lbBox').hidden = false; $('#lbVen').textContent = venue ? '· ' + venue : '';
+  const ol = $('#lbList'); ol.innerHTML = '';
+  rows.forEach((r, k) => {
+    const li = document.createElement('li'); if(r[0] === myName) li.className = 'me'; if(old.length && oldPts[r[0]] !== r[1]) li.classList.add('flash');
+    const a = document.createElement('span'); a.className = 'rk'; a.textContent = k === 0 ? '★' : k + 1;
+    const b = document.createElement('span'); b.className = 'nm'; b.textContent = r[0];
+    const c = document.createElement('span'); c.className = 'pt'; c.textContent = r[1] + (r[1] === 1 ? ' pt' : ' pts');
+    li.append(a, b, c); ol.append(li);
+  });
+}
+function listenBoard(){
+  const code = (okLink ? CODE : ls.get('mbCode') || '').toLowerCase(); if(!code || boardES) return;
+  try{ boardES = new EventSource(`${RELAY}/${PREFIX}${code}-board/sse?since=1h`); }catch(e){ return; }
+  boardES.onmessage = ev => {
+    let d; try{ d = JSON.parse(ev.data); }catch(e){ return; } if(d.event && d.event !== 'message') return;
+    let m; try{ m = JSON.parse(d.message); }catch(e){ return; }
+    if(m.mb !== 'board' || !m.board || (last.venue && m.venue !== last.venue)) return;
+    last.board = m.board; renderBoard(m.board, m.venue, last.name);
+    if(!document.hidden){ const keep = {...last}; delete keep.newPrize; keep.savedOn = new Date().toLocaleDateString('en-CA'); ls.set('mbLast', keep); }
+  };
+  boardES.onerror = () => { if(boardES && boardES.readyState === 2){ boardES = null; setTimeout(listenBoard, 10000); } };
+}
 function render(m, saved){
   last = m; show('vMe');
   if(!saved){ const keep = {...m}; delete keep.newPrize; keep.savedOn = new Date().toLocaleDateString('en-CA'); ls.set('mbLast', keep); }   // today's date, local
@@ -293,7 +329,12 @@ function render(m, saved){
   $('#test').hidden = !m.test; $('#test').textContent = m.test ? 'Practice game: this check-in worked, but points only count at a live show.' : '';
   $('#sPts').textContent = m.points || 0; $('#sNights').textContent = m.nights || 0; $('#sWins').textContent = (m.wins || []).length;
   $('#rank').textContent = m.rank ? `#${m.rank} of ${m.of} players at ${m.venue}` : (m.venue || '');
-  $('#next').textContent = m.next ? `${m.next.need} point${m.next.need === 1 ? '' : 's'} to your next prize: ${m.next.prize}` : '';
+  // how close to the next prize stays on screen (a later answer without it never blanks it)
+  const nx = m.next || (last0.next && last0.name === m.name ? last0.next : null); if(m.next) last0 = {next: m.next, name: m.name};
+  $('#next').textContent = nx ? `${nx.need} point${nx.need === 1 ? '' : 's'} to your next prize: ${nx.prize}` : '';
+  const step = m.rules && m.rules.prizes && m.rules.prizes[0] ? m.rules.prizes[0][0] : 25;
+  $('#pbar').hidden = !nx; if(nx) $('#pbar i').style.width = Math.max(4, Math.min(100, 100 * (step - nx.need) / step)) + '%';
+  if(m.board) renderBoard(m.board, m.venue, m.name);
   $('#prize').hidden = !m.newPrize; if(m.newPrize) $('#prize').textContent = `🎁 You just earned: ${m.newPrize}! See Andrew to collect it.`;
   const wl = $('#winList'); wl.innerHTML = '';
   for(const w of (m.wins || []).slice().reverse()){
@@ -307,6 +348,7 @@ function render(m, saved){
   $('#pcode').textContent = me ? me.pid : '';
   renderHow(m.rules);
   renderVote(m);
+  listenBoard();
 }
 // The point values and prizes come from Andrew's laptop, so this always matches how MusicBingo counts them.
 function renderHow(r){

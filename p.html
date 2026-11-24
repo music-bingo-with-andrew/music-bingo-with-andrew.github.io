@@ -46,6 +46,8 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
 #congrats button{max-width:320px;margin-top:26px}
 .spin{display:inline-block;width:22px;height:22px;border:3px solid #3a4052;border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
+details.howbox summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}details.howbox summary::-webkit-details-marker{display:none}
+details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);font-size:13px}details.howbox[open] .tap{display:none}
 .pbar{height:16px;background:#151821;border-radius:8px;margin:8px 0 2px;overflow:hidden;border:1px solid var(--line)}.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#ffd76a);border-radius:8px;transition:width .8s}
 .lbl{list-style:none;margin:6px 0 0;padding:0;text-align:left}.lbl li{display:flex;gap:10px;align-items:center;padding:8px 4px;border-top:1px solid var(--line);font-size:18px;font-weight:700}.lbl li:first-child{border-top:0}
 .lbl .rk{width:28px;color:var(--accent)}.lbl .nm{flex:1;letter-spacing:1px}.lbl .pt{color:var(--accent)}.lbl li.me{background:#2a2410;border-radius:8px}.lbl li.flash{animation:fl 1.6s ease-out 2}
@@ -123,10 +125,10 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
       <div id="voteMsg" class="msg" style="margin-top:2px"></div>
       <div id="voteOpts"></div>
     </div>
-    <div class="box">
-      <div class="sect" style="margin-top:0">How points work</div>
-      <div id="howList" class="how"></div>
-    </div>
+    <details class="box howbox">
+      <summary class="sect" style="margin-top:0">How points work <span class="tap">tap to see ▾</span></summary>
+      <div id="howList" class="how" style="margin-top:8px"></div>
+    </details>
     <div id="winBox" class="box" hidden>
       <div class="sect" style="margin-top:0">Your wins</div>
       <ul id="winList" class="wins"></ul>
@@ -337,7 +339,7 @@ function render(m, saved){
   $('#rank').textContent = m.rank ? `#${m.rank} of ${m.of} players at ${m.venue}` : (m.venue || '');
   // how close to the next prize stays on screen (a later answer without it never blanks it)
   const nx = m.next || (last0.next && last0.name === m.name ? last0.next : null); if(m.next) last0 = {next: m.next, name: m.name};
-  $('#next').textContent = nx ? `${nx.need} point${nx.need === 1 ? '' : 's'} to your next prize: ${nx.prize}` : '';
+  $('#next').hidden = !nx; $('#next').textContent = nx ? `${nx.need} point${nx.need === 1 ? '' : 's'} to your next prize: ${nx.prize}` : '';
   const step = m.rules && m.rules.prizes && m.rules.prizes[0] ? m.rules.prizes[0][0] : 25;
   $('#pbar').hidden = !nx; if(nx) $('#pbar i').style.width = Math.max(4, Math.min(100, 100 * (step - nx.need) / step)) + '%';
   if(m.board) renderBoard(m.board, m.venue, m.name);

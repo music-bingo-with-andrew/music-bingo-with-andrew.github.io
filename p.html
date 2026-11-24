@@ -258,6 +258,12 @@ function onLaptop(m, time){
       show('vCode'); $('#codeMsg').className = 'msg err'; $('#codeMsg').textContent = "We couldn't find that player code. Check it, or tap \"I'm new here\".";
       return;
     }
+    if(m.err === 'nametaken'){   // someone at this bar already has that nickname: pick another (nothing was saved yet)
+      answered = true; clearTimeout(retry); ls.del('mbPlayer'); me = null;
+      show('vName'); $('#name').value = ''; $('#nameMsg').className = 'msg err';
+      $('#nameMsg').textContent = `${m.taken || 'That name'} is already taken${m.venue ? ' at ' + m.venue : ''}. Pick a different nickname.`;
+      setTimeout(() => $('#name').focus(), 50); return;
+    }
     if(m.err){ answered = true; clearTimeout(retry); err(m.errT || "Couldn't check you in", m.err, false); return; }
     answered = true; clearTimeout(retry); meTime = time;
     if(!m.look) ls.set('mbCheckT', time);   // a win later tonight still shows if the page is reopened from the home screen

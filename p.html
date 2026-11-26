@@ -34,6 +34,8 @@ button.link{background:none;color:var(--muted);text-decoration:underline;font-we
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;margin-right:6px}.dot.ok{background:var(--ok)}
 .status{text-align:center;font-size:12px;color:var(--muted);margin-top:10px}
 #name{text-transform:uppercase}
+input.pinin{font:900 32px "Courier New",monospace;letter-spacing:12px;max-width:200px;display:block;margin:0 auto}
+.pinwhy{margin-top:10px;background:#16241d;border:1px solid #2d5a44;border-radius:10px;padding:10px;color:#c9f5df;font-size:15px;font-weight:600}
 .wins li{flex-wrap:wrap}.wins li .wd{flex:1 1 100%;font-size:13px;color:var(--muted)}
 #congrats{position:fixed;inset:0;z-index:50;background:radial-gradient(circle at 50% 35%,#4a3a10,#14161c 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
 #congrats[hidden]{display:none}
@@ -69,12 +71,15 @@ details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);fon
       <div><b>+4</b> for every 4 weeks in a row</div>
       <div id="howPrize0">Every <b>25 points</b> earns a prize!</div>
     </div>
-    <div style="margin:14px 0 6px;font-weight:700">What should we call you?</div>
+    <div style="margin:14px 0 6px;font-weight:700">Your nickname</div>
     <input id="name" maxlength="6" autocomplete="nickname" placeholder="Nickname">
     <div class="msg" style="margin-top:6px">Up to 6 letters</div>
+    <div style="margin:14px 0 6px;font-weight:700">Your 4-digit PIN</div>
+    <input id="pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+    <div class="pinwhy">🔒 Your PIN keeps your nickname yours alone, so no one else can claim your points.</div>
+    <div class="msg" style="margin-top:8px"><b>New?</b> Pick a nickname and a PIN you'll remember.<br><b>Played before?</b> Type your same nickname and PIN.</div>
     <button id="nameGo">Check me in</button>
     <div id="nameMsg" class="msg"></div>
-    <button class="link" id="haveCode">I've played before (I have a player code)</button>
   </div>
 
   <!-- coming back on a new phone: type the player code -->
@@ -85,6 +90,16 @@ details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);fon
     <button id="codeGo">Find me</button>
     <div id="codeMsg" class="msg"></div>
     <button class="link" id="newPlayer">I'm new here</button>
+  </div>
+
+  <!-- a player who doesn't have a PIN yet (or Andrew tapped New PIN): pick one -->
+  <div id="vPin" class="box" hidden>
+    <div class="big">Hi <span id="vpName"></span>! Pick your PIN</div>
+    <div class="pinwhy" style="margin-bottom:12px">🔒 Your PIN keeps your nickname yours alone, so no one else can claim your points.</div>
+    <input id="pin2" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+    <div class="msg" style="margin-top:6px">4 digits you'll remember. You only need it if your phone ever forgets you.</div>
+    <button id="pinGo">Save my PIN &amp; check me in</button>
+    <div id="pinMsg" class="msg"></div>
   </div>
 
   <div id="vWait" class="box" hidden>
@@ -134,9 +149,10 @@ details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);fon
       <ul id="winList" class="wins"></ul>
     </div>
     <div class="box">
-      <div class="msg" style="margin-top:0">Your player code</div>
+      <div class="msg" style="margin-top:0">Your nickname</div>
       <div id="pcode" class="pcode"></div>
-      <div class="msg">If your phone ever forgets you, tap "I've played before" and type this code.</div>
+      <div class="pinwhy">🔒 Your PIN keeps your nickname yours alone, so no one else can claim your points.</div>
+      <div class="msg">If your phone ever forgets you, scan your sheet and type your nickname and PIN.</div>
       <div class="msg" style="margin-top:12px"><b>Check your points anytime:</b> add this page to your home screen. iPhone: tap Share, then <i>Add to Home Screen</i>. Android: tap ⋮, then <i>Add to Home screen</i>.</div>
       <button class="link" id="notMe">Not you? Switch player</button>
     </div>
@@ -156,7 +172,7 @@ details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);fon
 <script>
 // Paper-card check-in. The FREE square on each card is a QR code that opens this page:
 //   p.html#CODE.KEY.SHEET   e.g. #DREW.k3x.57   (optional &r=relay)
-// The phone remembers the player (a 6-letter player code + nickname), sends a check-in to the laptop through the
+// The phone remembers the player (nickname + a hidden id). A phone that forgot them: nickname + 4-digit PIN. It sends a check-in to the laptop through the
 // relay, and the laptop answers with the player's points, nights and wins.
 const $ = s => document.querySelector(s);
 const PREFIX = 'mbdc7q-';
@@ -171,7 +187,7 @@ let me = ls.get('mbPlayer'), es = null, answered = false, retry = 0, tries = 0, 
 const RID = Math.random().toString(36).slice(2, 10);
 let meTime = 0;
 
-function show(v){ for(const x of ['vName', 'vCode', 'vWait', 'vErr', 'vMe']) $('#' + x).hidden = x !== v; }
+function show(v){ for(const x of ['vName', 'vCode', 'vPin', 'vWait', 'vErr', 'vMe']) $('#' + x).hidden = x !== v; }
 function setStat(ok, t){ $('#dot').className = 'dot' + (ok ? ' ok' : ''); $('#stat').textContent = t; }
 function err(t, sub, canRetry){ show('vErr'); $('#errT').textContent = t; $('#errMsg').textContent = sub || ''; $('#errBack').hidden = !canRetry; }
 function newPid(){ const a = new Uint8Array(6); crypto.getRandomValues(a); return [...a].map(b => ABC[b % ABC.length]).join(''); }
@@ -190,13 +206,27 @@ function begin(){
   if(!me || !me.pid){ show('vName'); setTimeout(() => $('#name').focus(), 50); return; }
   checkIn();
 }
-$('#nameGo').onclick = () => {
-  const n = $('#name').value.replace(/\s+/g, ' ').trim().slice(0, 6).toUpperCase();
-  if(n.length < 2){ $('#nameMsg').className = 'msg err'; $('#nameMsg').textContent = 'Type a nickname (2 to 6 letters).'; return; }
-  me = {pid: newPid(), name: n}; ls.set('mbPlayer', me); checkIn();
+// The PIN never leaves the phone as typed: only a scrambled version is sent.
+async function pinHash(pin){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('mbpin|' + pin)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+const pinOk = v => /^\d{4}$/.test(v);
+$('#nameGo').onclick = async () => {
+  const n = $('#name').value.replace(/\s+/g, ' ').trim().slice(0, 6).toUpperCase(), pin = $('#pin').value.trim();
+  $('#nameMsg').className = 'msg err';
+  if(n.length < 2){ $('#nameMsg').textContent = 'Type a nickname (2 to 6 letters).'; $('#name').focus(); return; }
+  if(!pinOk(pin)){ $('#nameMsg').textContent = 'Type a 4-digit PIN (numbers only).'; $('#pin').focus(); return; }
+  $('#nameMsg').textContent = '';
+  me = {pid: newPid(), name: n, pinh: await pinHash(pin)}; ls.set('mbPlayer', me); $('#pin').value = ''; checkIn();
 };
+$('#pin').addEventListener('keydown', e => { if(e.key === 'Enter') $('#nameGo').click(); });
+$('#pinGo').onclick = async () => {
+  const pin = $('#pin2').value.trim();
+  if(!pinOk(pin)){ $('#pinMsg').className = 'msg err'; $('#pinMsg').textContent = 'Type a 4-digit PIN (numbers only).'; $('#pin2').focus(); return; }
+  if(!me) return begin();
+  me.pinh = await pinHash(pin); ls.set('mbPlayer', me); $('#pin2').value = ''; checkIn();
+};
+$('#pin2').addEventListener('keydown', e => { if(e.key === 'Enter') $('#pinGo').click(); });
+function nameErr(t){ ls.del('mbPlayer'); me = null; show('vName'); $('#pin').value = ''; $('#nameMsg').className = 'msg err'; $('#nameMsg').textContent = t; setTimeout(() => $('#name').focus(), 50); }
 $('#name').addEventListener('keydown', e => { if(e.key === 'Enter') $('#nameGo').click(); });
-$('#haveCode').onclick = () => { show('vCode'); $('#codeMsg').textContent = ''; setTimeout(() => $('#pcodeIn').focus(), 50); };
 $('#newPlayer').onclick = () => show('vName');
 $('#codeGo').onclick = () => {
   const c = $('#pcodeIn').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -233,7 +263,7 @@ async function refresh(){
 }
 async function checkIn(){
   answered = false; tries = 0; meTime = Math.floor(Date.now() / 1000) - 5;   // wins from before this scan were already shown
-  show('vWait'); $('#waitT').textContent = me.restore ? 'Looking you up…' : 'Checking you in…'; $('#waitMsg').textContent = '';
+  show('vWait'); $('#waitT').textContent = 'Checking you in…'; $('#waitMsg').textContent = '';
   listen();
   await new Promise(r => setTimeout(r, 600));   // give the listener a moment to connect
   sendClaim();
@@ -241,7 +271,7 @@ async function checkIn(){
 async function sendClaim(){
   if(answered) return;
   tries++;
-  const ok = await send({mb: 'claim', pid: me.pid, name: me.restore ? '' : me.name, k: KEY, sheet: +SHEET, rid: RID, t: Date.now()});
+  const ok = await send({mb: 'claim', pid: me.pid, name: me.restore ? '' : me.name, pinh: me.pinh || undefined, k: KEY, sheet: +SHEET, rid: RID, t: Date.now()});
   if(!ok) $('#waitMsg').textContent = "Couldn't reach the internet. Trying again…";
   clearTimeout(retry);
   retry = setTimeout(() => {
@@ -257,9 +287,16 @@ function onLaptop(m, time){
   if(m.mb === 'me'){
     if(m.err === 'nocode'){
       answered = true; clearTimeout(retry); ls.del('mbPlayer'); me = null;
-      show('vCode'); $('#codeMsg').className = 'msg err'; $('#codeMsg').textContent = "We couldn't find that player code. Check it, or tap \"I'm new here\".";
-      return;
+      nameErr('Your phone forgot you. Type your nickname and PIN to check in.'); return;
     }
+    if(m.err === 'needpin'){   // a player with no PIN yet (or Andrew tapped New PIN): pick one
+      answered = true; clearTimeout(retry);
+      if(me){ delete me.pinh; ls.set('mbPlayer', me); }
+      show('vPin'); $('#vpName').textContent = m.name || (me && me.name) || ''; $('#pinMsg').textContent = ''; setTimeout(() => $('#pin2').focus(), 50); return;
+    }
+    if(m.err === 'badpin'){ answered = true; clearTimeout(retry); nameErr(`Wrong PIN for ${m.name}` + (m.left ? ` (${m.left} tr${m.left === 1 ? 'y' : 'ies'} left tonight)` : '') + `. New here? Pick a different nickname.`); return; }
+    if(m.err === 'nopin'){ answered = true; clearTimeout(retry); nameErr(`${m.name} is already taken${m.venue ? ' at ' + m.venue : ''}. If it's you, see Andrew. If you're new, pick a different nickname.`); return; }
+    if(m.err === 'locked'){ answered = true; clearTimeout(retry); ls.del('mbPlayer'); me = null; err('Nickname locked for tonight', `Too many wrong PINs for ${m.name}. If it's yours, see Andrew and he'll unlock it.`, true); return; }
     if(m.err === 'nametaken'){   // someone at this bar already has that nickname: pick another (nothing was saved yet)
       answered = true; clearTimeout(retry); ls.del('mbPlayer'); me = null;
       show('vName'); $('#name').value = ''; $('#nameMsg').className = 'msg err';
@@ -270,7 +307,8 @@ function onLaptop(m, time){
     answered = true; clearTimeout(retry); meTime = time;
     if(!m.look) ls.set('mbCheckT', time);   // a win later tonight still shows if the page is reopened from the home screen
     if(!m.look){ try{ history.replaceState(null, '', location.pathname + '#me'); }catch(e){} }   // a bookmark or home-screen shortcut opens the points page, not this card again
-    if(m.name && me){ me.name = m.name; delete me.restore; ls.set('mbPlayer', me); }
+    if(m.name && me){ me.name = m.name; delete me.restore; delete me.pinh; if(m.pid && /^[A-Z0-9]{6}$/.test(m.pid) && m.pid !== me.pid){ me.pid = m.pid; listen(); }   // signed in on a new phone: this phone is that player now
+      ls.set('mbPlayer', me); }
     render(m);
   } else if(m.mb === 'won'){
     const key = String(time) + '|' + m.round;
@@ -353,7 +391,7 @@ function render(m, saved){
   }
   $('#winBox').hidden = !(m.wins || []).length;
   $('#footMsg').hidden = look;
-  $('#pcode').textContent = me ? me.pid : '';
+  $('#pcode').textContent = m.name || (me ? me.name : '');
   renderHow(m.rules);
   renderVote(m);
   listenBoard();

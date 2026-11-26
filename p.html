@@ -275,7 +275,7 @@ async function sendClaim(){
 }
 
 function onLaptop(m, time){
-  if(m.mb === 'me' && m.rid !== RID && (m.rid || answered)) return;   // an answer to a different scan
+  if(m.mb === 'me' && (answered || m.rid !== RID)) return;   // an answer to a different scan, or a 2nd answer to this one (only the first counts)
   if(m.mb === 'won' && time < meTime) return;   // a win from before this check-in
   if(m.mb === 'me'){
     if(m.err === 'nocode'){

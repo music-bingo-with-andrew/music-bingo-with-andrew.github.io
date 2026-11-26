@@ -10,8 +10,8 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:520px;margin:0 auto;padding:12px 12px 30px}
-h1{margin:4px 0 2px;text-align:center;font:900 30px "Arial Black",Arial,sans-serif;color:var(--dab);letter-spacing:.5px}
-.sub{text-align:center;color:var(--muted);margin-bottom:14px}
+h1{margin:0 0 0;text-align:center;font:900 30px "Arial Black",Arial,sans-serif;color:var(--dab);letter-spacing:.5px}
+.sub{text-align:center;color:var(--muted);margin-bottom:8px}
 .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center;margin-bottom:12px}
 .big{font-size:22px;font-weight:800;margin:4px 0 6px}
 input{width:100%;font:700 24px system-ui,sans-serif;text-align:center;padding:12px;border-radius:10px;border:1px solid #3a4052;background:#11131a;color:#fff}
@@ -62,24 +62,17 @@ details.howbox .tap{text-transform:none;letter-spacing:0;color:var(--accent);fon
   <div class="sub">with Andrew</div>
 
   <!-- first visit: pick a nickname -->
-  <div id="vName" class="box" hidden>
-    <div class="big">Welcome! 👋</div>
-    <div>Check in to earn points every time you play, plus prizes.</div>
-    <div class="how" style="margin-top:12px">
-      <div><b>+1</b> for each game you play</div>
-      <div><b>+1 / +2 / +5</b> for winning a single line / double line / blackout</div>
-      <div><b>+4</b> for every 4 weeks in a row</div>
-      <div id="howPrize0">Every <b>25 points</b> earns a prize!</div>
-    </div>
-    <div style="margin:14px 0 6px;font-weight:700">Your nickname</div>
-    <input id="name" maxlength="6" autocomplete="nickname" placeholder="Nickname">
-    <div class="msg" style="margin-top:6px">Up to 6 letters</div>
-    <div style="margin:14px 0 6px;font-weight:700">Your 4-digit PIN</div>
-    <input id="pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
-    <div class="pinwhy">🔒 Your PIN keeps your nickname yours alone, so no one else can claim your points.</div>
-    <div class="msg" style="margin-top:8px"><b>New?</b> Pick a nickname and a PIN you'll remember.<br><b>Played before?</b> Type your same nickname and PIN.</div>
-    <button id="nameGo">Check me in</button>
-    <div id="nameMsg" class="msg"></div>
+  <div id="vName" class="box" hidden style="padding:12px 14px">
+    <div class="big" style="margin:0 0 4px">Welcome! 👋</div>
+    <div style="font-size:14px;color:#d3d7e2">Earn points every time you play: <b style="color:var(--accent)">+1</b> per game, <b style="color:var(--accent)">+1/+2/+5</b> for wins, and a prize every <b id="howPrize0" style="color:var(--accent)">25 points</b>!</div>
+    <div style="margin:10px 0 4px;font-weight:700">Your nickname <span style="font-weight:400;color:var(--muted);font-size:13px">(up to 6 letters)</span></div>
+    <input id="name" maxlength="6" autocomplete="nickname" placeholder="Nickname" style="padding:8px">
+    <div style="margin:10px 0 4px;font-weight:700">Your 4-digit PIN</div>
+    <input id="pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••" style="padding:6px">
+    <div class="pinwhy" style="margin-top:8px;padding:7px 8px;font-size:14px">🔒 Your PIN keeps your nickname yours alone, so no one else can claim your points.</div>
+    <div class="msg" style="margin-top:6px;font-size:13px"><b>New?</b> Pick a nickname &amp; PIN. <b>Played before?</b> Type your same nickname &amp; PIN.</div>
+    <button id="nameGo" style="margin-top:8px">Check me in</button>
+    <div id="nameMsg" class="msg" style="margin-top:6px;min-height:0"></div>
   </div>
 
   <!-- coming back on a new phone: type the player code -->
